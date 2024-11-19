@@ -43,25 +43,20 @@ func handleConnection(conn net.Conn) {
 		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(echo), echo)
 	} else if strings.Contains(req, "/user-agent") && pathUA != "" {
 		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(pathUA), pathUA)
-	} else if strings.HasPrefix(path, "/files/") && *dir != "" {
-		filename := path[7:]
-		fmt.Println(*dir + filename)
-		if method == "GET" {
-			if file, err := os.ReadFile(*dir + filename); err == nil {
-				content := string(file)
-				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(content), content)
-			} else {
-				response = "HTTP/1.1 404 Not found\r\n\r\n"
-			}
-		} 
+	} else if m == "GET" && p[0:7] == "/files/" {
+		dir := os.Args[2]
+		content, err := os.ReadFile(path.Join(dir, p[7:]))
+		if err != nil {
+			response = "HTTP/1.1 404 Not Found\r\n\r\n"
+		} else {
+			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(content), string(content))
+		}
 	} else if m == "POST" && p[0:7] == "/files/" {
 		content := strings.Trim(r[len(r)-1], "\x00")
 		dir := os.Args[2]
-
-		// _ = os.WriteFile(path.join(dir, p[7:]), []byte(content), 0644)
 		_ = os.WriteFile(path.Join(dir, p[7:]), []byte(content), 0644)
 		response = "HTTP/1.1 201 Created\r\n\r\n"
-	} else {
+	}  else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
 	conn.Write([]byte(response))
