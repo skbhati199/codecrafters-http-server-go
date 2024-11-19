@@ -27,11 +27,10 @@ func main() {
 		go func() {
 			defer conn.Close()
 			buf := make([]byte, 1024)
-			readByte, err = conn.Read(buf)
+			_, err = conn.Read(buf)
 			if err != nil {
 				fmt.Println("Error accepting connection: ", err)
 			}
-			rq := requestResult(readBuf, readByte)
 			req := string(buf)
 			lines := strings.Split(req, CRLF)
 			path := strings.Split(lines[0], " ")[1]
@@ -46,7 +45,7 @@ func main() {
 			} else if path == "/user-agent" {
 				msg := strings.Split(lines[2], " ")[1]
 				// res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %v\r\n\r\n%v", len(msg), msg)
-				if acceptedEncoding(req) {
+				if acceptedEncoding(rq) {
 					res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n%s", len(msg), msg)
 					// conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n%s", len(msg), msg)))
 				} else {
@@ -101,15 +100,4 @@ func main() {
 			}
 		}()
 	}
-}
-
-func acceptedEncoding(rq httpRequestDetails) bool {
-	var res bool
-	acceptedEncodings := strings.Split(string(rq.acceptEncoding), ", ")
-	for _, encoding := range acceptedEncodings {
-		if encoding == "gzip" {
-			res = true
-		}
-	}
-	return res
 }
