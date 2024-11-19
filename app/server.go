@@ -40,7 +40,7 @@ func main() {
 			if path == "/" {
 				res = "HTTP/1.1 200 OK\r\n\r\n"
 			} else if strings.HasPrefix(path, "/echo/") {
-				msg := path[6:]
+				echoOut := req.path[strings.Index(req.path, "/echo/")+len("/echo/"):]
 				// res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %v\r\n\r\n%v", len(msg), msg)
 				var contEncoding = ""
 				if req.encoding == "gzip" {
