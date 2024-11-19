@@ -11,9 +11,10 @@ func handleConnection(conn net.Conn, dir string) {
 	conn.Read(buf)
 	fmt.Print(string(buf))
 	req := string(buf)
-	path := strings.Split(req, "\r\n")[0]
-	path = strings.TrimSpace(path)
-	path = strings.Split(path, " ")[1]
+	lines := strings.Split(req, CRLF)
+	path := strings.Split(lines[0], " ")[1]
+	method := strings.Split(lines[0], " ")[0]
+	fmt.Println(path)
 	var pathUA string
 	headers := strings.Split(req, "\r\n")
 	for _, header := range headers {
