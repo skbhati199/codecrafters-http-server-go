@@ -48,15 +48,11 @@ func handleConnection(conn net.Conn) {
 			} else {
 				response = "HTTP/1.1 404 Not found\r\n\r\n"
 			}
-		} else if method == "POST" {
-			file := []byte(strings.Trim(lines[6], "\x00"))
-			if err := os.WriteFile(*dir+filename, file, 0644); err == nil {
-				fmt.Println("wrote file")
-				response = "HTTP/1.1 201 OK\r\n\r\n"
-			} else {
-				response = "HTTP/1.1 404 Not found\r\n\r\n"
-			}
-		}
+		} else if method == "POST" && path[0:7] == "/files/" {
+			content := strings.Trim(r[len(r)-1], "\x00")
+		dir := os.Args[2]
+		_ = os.WriteFile(path.Join(dir, p[7:]), []byte(content), 0644)
+		response = "HTTP/1.1 201 Created\r\n\r\n"
 	} else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
