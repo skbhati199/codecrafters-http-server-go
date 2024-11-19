@@ -60,6 +60,18 @@ func handleConnection(conn net.Conn) {
 			return
 		}
 		defer file.Close()
+		body := make([]byte, contentLength)
+		_, err = io.ReadFull(reader, body)
+		if err != nil {
+			conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+			return
+		}
+
+		_, err = file.Write(body)
+		if err != nil {
+			conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+			return
+		}
 		response = "HTTP/1.1 201 Created\r\n\r\n"
 	}  else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
