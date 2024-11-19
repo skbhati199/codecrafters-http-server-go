@@ -174,7 +174,7 @@ func main() {
 	})
 	router.AddEndpoint("GET", "/echo/*", func(request HTTPRequest) HTTPResponse {
 		data := strings.TrimPrefix(request.Target, "/echo/")
-		return textResponse(200, data)
+		// return textResponse(200, data)
 		response := textResponse(200, data)
 		encoding, ok := request.Headers["Accept-Encoding"]
 		if ok && encoding == "gzip" {
