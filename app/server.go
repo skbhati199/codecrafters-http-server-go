@@ -28,6 +28,7 @@ func handleConnection(conn net.Conn, directory string) {
 			break
 		}
 	}
+	reader := bufio.NewReader(conn)
 
 	headers := make(map[string]string)
 	for {
@@ -46,7 +47,6 @@ func handleConnection(conn net.Conn, directory string) {
 		}
 	}
 
-	reader := bufio.NewReader(conn)
 
 	// Read the request line
 	requestLine, err := reader.ReadString('\n')
