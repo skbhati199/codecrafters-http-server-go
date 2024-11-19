@@ -27,11 +27,12 @@ func main() {
 		go func() {
 			defer conn.Close()
 			buf := make([]byte, 1024)
-			_, err = conn.Read(buf)
+			n, err = conn.Read(buf)
 			if err != nil {
 				fmt.Println("Error accepting connection: ", err)
 			}
-			req := string(buf)
+			body := strconv.Quote(string(buf[:n]))
+			req, _ := parseRequest(body)
 			lines := strings.Split(req, CRLF)
 			path := strings.Split(lines[0], " ")[1]
 			method := strings.Split(lines[0], " ")[0]
@@ -109,4 +110,34 @@ func writeResponse(conn net.Conn, res string) {
 		fmt.Println("failed to write to connection")
 		return
 	}
+}
+
+func parseRequest(request string) (*HTTPRequest, error) {
+	strs := strings.Split(request, "\\r\\n")
+	req := HTTPRequest{}
+	for _, item := range strs {
+		if strings.Contains(item, "GET") || strings.Contains(item, "POST") {
+			headerParts := strings.Fields(item)
+			// set http verb
+			req.verb = strings.Trim(headerParts[0], "\"")
+			// set route
+			req.path = headerParts[1]
+			// set http version
+			req.httpVersion = headerParts[2]
+		}
+		if strings.Contains(item, "Host: ") {
+			req.host = item[strings.Index("Host: ", item)+len("Host: "):]
+		}
+		if strings.Contains(item, "User-Agent: ") {
+			req.userAgent = item[strings.Index("User-Agent: ", item)+len("User-Agent: "):]
+		}
+		if strings.Contains(item, "Accept-Encoding: ") {
+			req.encoding = item[strings.Index("Accept-Encoding: ", item)+len("Accept-Encoding: "):]
+			req.encoding = strings.Trim(req.encoding, " ")
+		}
+	}
+	if req.verb == "POST" {
+		req.body = strings.TrimSuffix(strs[len(strs)-1], "\"")
+	}
+	return &req, nil
 }
