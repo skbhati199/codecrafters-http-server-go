@@ -1,186 +1,114 @@
 package main
 import (
 	"bytes"
+	"compress/gzip"
+	"flag"
 	"fmt"
 	"net"
 	"os"
+	"path"
 	"strings"
 )
-// Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
-var _ = net.Listen
-var _ = os.Exit
-type httpRequestDetails struct {
-	method         []byte
-	path           []byte
-	host           []byte
-	userAgent      []byte
-	requestBody    []byte
-	acceptEncoding []byte
-}
-type httpRequest struct {
-	statusLine  []byte
-	headers     [][]byte
-	requestBody []byte
-}
+var filesDir string
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
-	// Uncomment this block to pass the first stage
-	//
+	flag.StringVar(&filesDir, "directory", "./files", "specify a directory where files uploaded to server are saved")
+	flag.Parse()
+	fmt.Println("Saving files to: ", filesDir)
+	fmt.Println("Got args: ", os.Args)
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
 		os.Exit(1)
 	}
+	fmt.Println("Listening")
 	for {
-		conn, err1 := l.Accept()
-		if err1 != nil {
-			fmt.Println("Error accepting connection: ", err1.Error())
-			os.Exit(1)
+		conn, err := l.Accept()
+		fmt.Println("Accepted")
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			continue
 		}
 		go handleConnection(conn)
+		fmt.Println("Handling started")
 	}
 }
 func handleConnection(conn net.Conn) {
-	readBuf := make([]byte, 256)
-	readByte, readErr := conn.Read(readBuf)
-	if readErr != nil {
-		fmt.Println("Couldn't read data:", readErr)
+	buffer := make([]byte, 1024)
+	n, _ := conn.Read(buffer)
+	request := string(buffer[:n])
+	resp := dispatch(parseRequest(request))
+	conn.Write([]byte(resp))
+	fmt.Println("Handled")
+}
+func parseRequest(request string) (method string, path string, headers map[string]string, body string) {
+	fmt.Println("~~~ request ~~~\n", request)
+	requestParts := strings.Split(request, "\r\n")
+	requestLine := requestParts[0]
+	lineParts := strings.Split(requestLine, " ")
+	method = lineParts[0]
+	path = lineParts[1]
+	body = requestParts[len(requestParts)-1]
+	headers = make(map[string]string)
+	for i := 1; i < len(requestParts)-1; i++ {
+		key, value, _ := strings.Cut(requestParts[i], ":")
+		headers[strings.ToLower(strings.Trim(key, " "))] = strings.Trim(value, " ")
 	}
-	defer conn.Close()
-	rq := requestResult(readBuf, readByte)
-	if string(rq.path) == "/" {
-		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
-	} else if strings.Contains(string(rq.path), "echo") {
-		msg := splitPath(string(rq.path))[2]
-		if acceptedEncoding(rq) {
-			conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n%s", len(msg), msg)))
+	return // named result parameters
+}
+func dispatch(method string, urlPath string, headers map[string]string, body string) string {
+	if method != "GET" {
+		if method == "POST" && strings.HasPrefix(urlPath, "/files/") {
+			fname := urlPath[len("/files/"):]
+			f, err := os.Create(path.Join(filesDir, fname))
+			if err != nil {
+				return "HTTP/1.1 422 Unprocessable Entity\r\n\r\n"
+			}
+			defer f.Close()
+			f.WriteString(body)
+			return "HTTP/1.1 201 Created\r\n\r\n"
 		} else {
-			conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)))
+			return "HTTP/1.1 405 Method Not Allowed\r\n\r\n"
 		}
-	} else if strings.Contains(string(rq.path), "files") && string(rq.method) == "GET" {
-		fileName := splitPath(string(rq.path))[2]
-		fileContent, fileRequestErr := handleFileReadRequest(fileName)
-		if fileRequestErr != nil {
-			conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+	}
+	if urlPath == "/" || urlPath == "/index.html" {
+		return "HTTP/1.1 200 OK\r\n\r\n"
+	} else if strings.HasPrefix(urlPath, "/echo/") {
+		text := urlPath[len("/echo/"):]
+		return contentResponse(text, "text/plain", headers)
+	} else if urlPath == "/user-agent" {
+		agent := headers["user-agent"]
+		return contentResponse(agent, "text/plain", headers)
+	} else if strings.HasPrefix(urlPath, "/files/") {
+		fname := urlPath[len("/files/"):]
+		dat, err := os.ReadFile(path.Join(filesDir, fname))
+		if err != nil {
+			return "HTTP/1.1 404 Not Found\r\n\r\n"
 		}
-		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(fileContent), fileContent)))
-	} else if strings.Contains(string(rq.path), "user-agent") {
-		userAgent := string(rq.userAgent)
-		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s/1.2.3", len(userAgent), userAgent)))
-	} else if string(rq.method) == "POST" && strings.Contains(string(rq.path), "files") {
-		fileName := splitPath(string(rq.path))[2]
-		fileRequestErr := handleFileWriteRequest(fileName, rq.requestBody)
-		if fileRequestErr != nil {
-			conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
-		}
-		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 201 Created\r\n\r\n")))
+		return contentResponse(string(dat), "application/octet-stream", headers)
 	} else {
-		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
-	}
-	splitRequest(readBuf, readByte)
-}
-
-
-func splitRequest(readBuf []byte, readByte int) httpRequest {
-	splittedReq := bytes.Split(readBuf[:readByte], []byte("\r\n"))
-	statusLine := splittedReq[0]
-	headers := splittedReq[1 : len(splittedReq)-2]
-	requestBody := splittedReq[len(splittedReq)-1]
-	return httpRequest{
-		statusLine:  statusLine,
-		headers:     headers,
-		requestBody: requestBody,
+		return "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
 }
-func mapHeaders(headers [][]byte) map[string]string {
-	res := make(map[string]string)
-	for i := range headers {
-		line := strings.Split(string(headers[i]), ": ")
-		res[line[0]] = line[1]
-	}
-	return res
-}
-func requestResult(readBuf []byte, readByte int) httpRequestDetails {
-	sreq := splitRequest(readBuf, readByte)
-	statusLine := bytes.Split(sreq.statusLine, []byte(" "))
-	headerMap := mapHeaders(sreq.headers)
-	requestBody := sreq.requestBody
-	return httpRequestDetails{
-		method:         statusLine[0],
-		path:           statusLine[1],
-		host:           []byte(headerMap["Host"]),
-		userAgent:      []byte(headerMap["User-Agent"]),
-		requestBody:    requestBody,
-		acceptEncoding: []byte(headerMap["Accept-Encoding"]),
-	}
-}
-func splitPath(s string) []string {
-	return strings.Split(s, "/")
-}
-func handleFileReadRequest(fileName string) ([]byte, error) {
-	arguments := os.Args[1:]
-	var directory string
-	if len(arguments) <= 0 {
-		fmt.Println(fmt.Errorf("please provide some arguments"))
-		return []byte(""), fmt.Errorf("please provide some arguments")
-	} else if arguments[len(arguments)-1] == "--directory" {
-		fmt.Println(fmt.Errorf("argument --directory specified, but value didn't provided"))
-		return []byte(""), fmt.Errorf("argument --directory specified, but value didn't provided")
-	}
-	exist := false
-	for i := range arguments {
-		if arguments[i] == "--directory" && arguments[len(arguments)-1] != "--directory" {
-			directory = arguments[i+1]
-			exist = true
+func contentResponse(content string, contentType string, requestHeaders map[string]string) string {
+	values, ok := requestHeaders["accept-encoding"]
+	compression := ""
+	if ok {
+		for _, elem := range strings.Split(values, ",") {
+			if strings.TrimSpace(elem) == "gzip" {
+				var buffer bytes.Buffer
+				w := gzip.NewWriter(&buffer)
+				w.Write([]byte(content))
+				w.Close()
+				content = buffer.String()
+				compression = "Content-Encoding: gzip\r\n"
+				break
+			}
 		}
 	}
-	if !exist {
-		fmt.Println(fmt.Errorf("no --directory argument passwd. please provide --directory argument and restart the program"))
-		return []byte(""), fmt.Errorf("no --directory argument passwd. please provide --directory argument and restart the program")
-	}
-	fileContent, fileContentErr := os.ReadFile(directory + "/" + fileName)
-	if fileContentErr != nil {
-		fmt.Println(fileContentErr)
-		return []byte(""), fileContentErr
-	}
-	return fileContent, nil
-}
-func handleFileWriteRequest(fileName string, fileContent []byte) error {
-	arguments := os.Args[1:]
-	var directory string
-	if len(arguments) <= 0 {
-		fmt.Println(fmt.Errorf("please provide some arguments"))
-		return fmt.Errorf("please provide some arguments")
-	} else if arguments[len(arguments)-1] == "--directory" {
-		fmt.Println(fmt.Errorf("argument --directory specified, but value didn't provided"))
-		return fmt.Errorf("argument --directory specified, but value didn't provided")
-	}
-	exist := false
-	for i := range arguments {
-		if arguments[i] == "--directory" && arguments[len(arguments)-1] != "--directory" {
-			directory = arguments[i+1]
-			exist = true
-		}
-	}
-	if !exist {
-		fmt.Println(fmt.Errorf("no --directory argument passwd. please provide --directory argument and restart the program"))
-		return fmt.Errorf("no --directory argument passwd. please provide --directory argument and restart the program")
-	}
-	fileContentErr := os.WriteFile(directory+"/"+fileName, fileContent, 0644)
-	if fileContentErr != nil {
-		fmt.Println(fileContentErr)
-		return fileContentErr
-	}
-	return nil
-}
-func acceptedEncoding(rq httpRequestDetails) bool {
-	var res bool
-	acceptedEncodings := strings.Split(string(rq.acceptEncoding), ", ")
-	for _, encoding := range acceptedEncodings {
-		if encoding == "gzip" {
-			res = true
-		}
-	}
-	return res
+	return "HTTP/1.1 200 OK\r\n" +
+		compression +
+		"Content-Type: " + contentType + "\r\n" +
+		"Content-Length: " + fmt.Sprint(len(content)) +
+		"\r\n" +
+		"\r\n" + content
 }
