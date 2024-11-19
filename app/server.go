@@ -2,14 +2,17 @@ package main
 import (
 	"fmt"
 	"net"
+	"flag"
 	"os"
 	"strings"
 )
 
 const CRLF = "\r\n"
 
-func handleConnection(conn net.Conn, dir string) {
+func handleConnection(conn net.Conn) {
 	defer conn.Close()
+	dir := flag.String("directory", "", "enter a directory")
+	flag.Parse()
 	buf := make([]byte, 1024)
 	conn.Read(buf)
 	fmt.Print(string(buf))
@@ -61,8 +64,7 @@ func handleConnection(conn net.Conn, dir string) {
 }
 func main() {
 	fmt.Println("Logs from your program will appear here!")
-	dir := flag.String("directory", "", "enter a directory")
-	flag.Parse()
+	
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
