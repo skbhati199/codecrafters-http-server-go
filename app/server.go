@@ -4,8 +4,8 @@ import (
 	"net"
 	"flag"
 	"os"
-	"strings"
 	"path"
+	"strings"
 )
 
 const CRLF = "\r\n"
@@ -56,7 +56,7 @@ func handleConnection(conn net.Conn) {
 		} else if m == "POST" && p[0:7] == "/files/" {
 			content := strings.Trim(r[len(r)-1], "\x00")
 			dir := os.Args[2]
-			_ = os.WriteFile(path.Join(dir, p[7:]), []byte(content), 0644)
+			_ = os.WriteFile(path.join(dir, p[7:]), []byte(content), 0644)
 			response = "HTTP/1.1 201 Created\r\n\r\n"
 		}
 	} else {
