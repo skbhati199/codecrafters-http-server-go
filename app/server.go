@@ -49,7 +49,7 @@ func main() {
 				}
 				fmt.Println(contEncoding)
 				res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n%sContent-Length: %d\r\n\r\n%s", contEncoding, len(echoOut), echoOut)
-				// writeResponse(conn, res)
+				writeResponse(conn, res)
 			} else if path == "/user-agent" {
 				msg := strings.Split(lines[2], " ")[1]
 				res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %v\r\n\r\n%v", len(msg), msg)
@@ -100,5 +100,13 @@ func main() {
 				os.Exit(1)
 			}
 		}()
+	}
+}
+
+func writeResponse(conn net.Conn, res string) {
+	_, err := conn.Write([]byte(res))
+	if err != nil {
+		fmt.Println("failed to write to connection")
+		return
 	}
 }
