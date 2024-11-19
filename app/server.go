@@ -80,6 +80,8 @@ func handleConnection(conn net.Conn) {
 	}
 	splitRequest(readBuf, readByte)
 }
+
+
 func splitRequest(readBuf []byte, readByte int) httpRequest {
 	splittedReq := bytes.Split(readBuf[:readByte], []byte("\r\n"))
 	statusLine := splittedReq[0]
