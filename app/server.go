@@ -5,6 +5,9 @@ import (
 	"os"
 	"strings"
 )
+
+const CRLF = "\r\n"
+
 func handleConnection(conn net.Conn, dir string) {
 	defer conn.Close()
 	buf := make([]byte, 1024)
