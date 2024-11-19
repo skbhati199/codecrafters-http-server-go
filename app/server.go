@@ -83,34 +83,15 @@ func handleConnection(conn net.Conn, directory string) {
 		userAgent := headers["user-agent"]
 		contentLength := len(userAgent)
 		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent)
-	} else if strings.HasPrefix(path, "/files/") {
-		filename := strings.TrimPrefix(path, "/files/")
-		filePath := filepath.Join(directory, filename)
-		
-		file, err := os.Open(filePath)
+	} else if strings.Contains(req, "/files/") {
+		dir := os.Args[2]
+		fileName := strings.TrimPrefix(path, "/files/")
+		fmt.Print(fileName)
+		data, err := os.ReadFile(dir + fileName)
 		if err != nil {
 			response = "HTTP/1.1 404 Not Found\r\n\r\n"
 		} else {
-			defer file.Close()
-			
-			fileInfo, err := file.Stat()
-			if err != nil {
-				response = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
-			} else {
-				contentLength := fileInfo.Size()
-				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n", contentLength)
-				_, err = conn.Write([]byte(response)) // Write headers first
-				if err != nil {
-					fmt.Println("Error writing response:", err.Error())
-					return
-				}
-				// Send file content after successful header write
-				_, err = io.Copy(conn, file)
-				if err != nil {
-					fmt.Println("Error writing file content:", err.Error())
-				}
-				return // Exit after sending complete response
-			}
+			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(data), data)
 		}
 	} else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
