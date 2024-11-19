@@ -1,16 +1,11 @@
 package main
 import (
-	"bufio"
-	"flag"
 	"fmt"
-	"io"
 	"net"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 )
-func handleConnection(conn net.Conn, directory string) {
+func handleConnection(conn net.Conn, dir string) {
 	defer conn.Close()
 	buf := make([]byte, 1024)
 	conn.Read(buf)
@@ -20,85 +15,50 @@ func handleConnection(conn net.Conn, directory string) {
 	path = strings.TrimSpace(path)
 	path = strings.Split(path, " ")[1]
 	var pathUA string
-	headersOld := strings.Split(req, "\r\n")
-	for _, header := range headersOld {
+	headers := strings.Split(req, "\r\n")
+	for _, header := range headers {
 		if strings.HasPrefix(header, "User-Agent:") {
 			uaParts := strings.SplitN(header, ":", 2)
 			pathUA = strings.TrimSpace(uaParts[1])
 			break
 		}
 	}
-	reader := bufio.NewReader(conn)
-
-	headers := make(map[string]string)
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("Error reading headers:", err.Error())
-			return
-		}
-		line = strings.TrimSpace(line)
-		if line == "" {
-			break
-		}
-		parts := strings.SplitN(line, ": ", 2)
-		if len(parts) == 2 {
-			headers[strings.ToLower(parts[0])] = parts[1]
-		}
-	}
-
-
-	// Read the request line
-	requestLine, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Println("Error reading request:", err.Error())
-		return
-	}
-
-	method, path := extractMethodAndPath(requestLine)
-
-	// Handle the request
-	switch method {
-	case "GET":
-		handleGet(conn, directory, path)
-	case "POST":
-		contentLength, _ := strconv.Atoi(headers["content-length"])
-		handlePost(conn, directory, path, reader, contentLength)
-	default: {
-		response := ""
-		if strings.HasPrefix(req, "GET / HTTP") {
-			response = "HTTP/1.1 200 OK\r\n\r\n"
-		} else if strings.Contains(req, "/echo/") {
-			echo := strings.TrimPrefix(path, "/echo/")
-			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(echo), echo)
-		} else if strings.Contains(req, "/user-agent") && pathUA != "" {
-			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(pathUA), pathUA)
-		} else if strings.Contains(req, "/files/") {
-			dir := os.Args[2]
-			fileName := strings.TrimPrefix(path, "/files/")
-			fmt.Print(fileName)
-			data, err := os.ReadFile(dir + fileName)
-			if err != nil {
-				response = "HTTP/1.1 404 Not Found\r\n\r\n"
+	response := ""
+	if strings.HasPrefix(req, "GET / HTTP") {
+		response = "HTTP/1.1 200 OK\r\n\r\n"
+	} else if strings.Contains(req, "/echo/") {
+		echo := strings.TrimPrefix(path, "/echo/")
+		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(echo), echo)
+	} else if strings.Contains(req, "/user-agent") && pathUA != "" {
+		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(pathUA), pathUA)
+	} else if strings.HasPrefix(path, "/files/") && *dir != "" {
+		filename := path[7:]
+		fmt.Println(*dir + filename)
+		if method == "GET" {
+			if file, err := os.ReadFile(*dir + filename); err == nil {
+				content := string(file)
+				res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(content), content)
 			} else {
-				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(data), data)
+				res = "HTTP/1.1 404 Not found\r\n\r\n"
 			}
-		} else {
-			response = "HTTP/1.1 404 Not Found\r\n\r\n"
+		} else if method == "POST" {
+			file := []byte(strings.Trim(lines[6], "\x00"))
+			if err := os.WriteFile(*dir+filename, file, 0644); err == nil {
+				fmt.Println("wrote file")
+				res = "HTTP/1.1 201 OK\r\n\r\n"
+			} else {
+				res = "HTTP/1.1 404 Not found\r\n\r\n"
+			}
 		}
-		conn.Write([]byte(response))
-		}
+	} else {
+		response = "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
-
+	conn.Write([]byte(response))
 }
 func main() {
-	directory := flag.String("directory", "", "the directory to serve files from")
+	fmt.Println("Logs from your program will appear here!")
+	dir := flag.String("directory", "", "enter a directory")
 	flag.Parse()
-
-	if *directory == "" {
-		fmt.Println("Please provide a directory using the --directory flag")
-		os.Exit(1)
-	}
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
@@ -110,74 +70,6 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
-		go handleConnection(conn, *directory)
+		go handleConnection(conn, *dir)
 	}
-}
-
-func extractMethodAndPath(requestLine string) (string, string) {
-	parts := strings.Split(requestLine, " ")
-	if len(parts) < 2 {
-		return "", ""
-	}
-	return parts[0], parts[1]
-}
-
-
-func handleGet(conn net.Conn, directory, path string) {
-	filename := strings.TrimPrefix(path, "/files/")
-	filePath := filepath.Join(directory, filename)
-
-	file, err := os.Open(filePath)
-	if err != nil {
-		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
-		return
-	}
-	defer file.Close()
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-		return
-	}
-
-	contentLength := fileInfo.Size()
-	response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n", contentLength)
-	conn.Write([]byte(response))
-
-	_, err = io.Copy(conn, file)
-	if err != nil {
-		fmt.Println("Error writing file content:", err.Error())
-	}
-}
-
-func handlePost(conn net.Conn, directory, path string, reader *bufio.Reader, contentLength int) {
-	filename := strings.TrimPrefix(path, "/files/")
-	if filename == "" {
-		conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
-		return
-	}
-
-	filePath := filepath.Join(directory, filename)
-	file, err := os.Create(filePath)
-	if err != nil {
-		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-		return
-	}
-	defer file.Close()
-
-	// Read the request body and write it to the file
-	body := make([]byte, contentLength)
-	_, err = io.ReadFull(reader, body)
-	if err != nil {
-		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-		return
-	}
-
-	_, err = file.Write(body)
-	if err != nil {
-		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-		return
-	}
-
-	conn.Write([]byte("HTTP/1.1 201 Created\r\n\r\n"))
 }
