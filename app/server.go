@@ -63,7 +63,6 @@ func main() {
 							break
 						}
 					}
-
 					if contentLength <= 0 {
 						res = "HTTP/1.1 411 Length Required\r\n\r\n"
 					} else {
