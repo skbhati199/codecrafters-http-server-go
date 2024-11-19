@@ -99,13 +99,17 @@ func handleConnection(conn net.Conn, directory string) {
 			} else {
 				contentLength := fileInfo.Size()
 				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n", contentLength)
-				conn.Write([]byte(response))
-				
+				_, err = conn.Write([]byte(response)) // Write headers first
+				if err != nil {
+					fmt.Println("Error writing response:", err.Error())
+					return
+				}
+				// Send file content after successful header write
 				_, err = io.Copy(conn, file)
 				if err != nil {
 					fmt.Println("Error writing file content:", err.Error())
 				}
-				return
+				return // Exit after sending complete response
 			}
 		}
 	} else {
