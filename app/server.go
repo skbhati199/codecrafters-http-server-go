@@ -20,8 +20,6 @@ func handleConnection(conn net.Conn) {
 	m := strings.Split(r[0], " ")[0]
 	p := strings.Split(r[0], " ")[1]
 	req := string(buf)
-
-	lines := strings.Split(req, CRLF)
 	var pathUA string
 	headers := strings.Split(req, "\r\n")
 	for _, header := range headers {
