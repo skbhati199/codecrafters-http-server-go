@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 )
 
 func main() {
@@ -16,6 +17,8 @@ func main() {
 	}
 	defer l.Close()
 
+	var wg sync.WaitGroup
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -23,8 +26,14 @@ func main() {
 			continue
 		}
 
-		go handleConnection(conn)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			handleConnection(conn)
+		}()
 	}
+
+	wg.Wait()
 }
 
 func handleConnection(conn net.Conn) {
