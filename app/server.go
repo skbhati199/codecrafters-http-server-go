@@ -46,6 +46,10 @@ func handleConnection(conn net.Conn) {
 	var response string
 	if path == "/" {
 		response = "HTTP/1.1 200 OK\r\n\r\n"
+	} else if strings.HasPrefix(path, "/echo/") {
+		echoStr := strings.TrimPrefix(path, "/echo/")
+		contentLength := len(echoStr)
+		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, echoStr)
 	} else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
