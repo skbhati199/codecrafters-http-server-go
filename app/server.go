@@ -12,7 +12,6 @@ const CRLF = "\r\n"
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-	dir := flag.String("directory", "", "enter a directory")
 	flag.Parse()
 	buf := make([]byte, 1024)
 	conn.Read(buf)
@@ -23,7 +22,6 @@ func handleConnection(conn net.Conn) {
 	req := string(buf)
 
 	lines := strings.Split(req, CRLF)
-	method := strings.Split(lines[0], " ")[0]
 	var pathUA string
 	headers := strings.Split(req, "\r\n")
 	for _, header := range headers {
