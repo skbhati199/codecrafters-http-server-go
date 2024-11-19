@@ -1,88 +1,36 @@
 package main
-
 import (
-	"bufio"
-	"flag"
 	"fmt"
-	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 )
-
-func main() {
-	directory := flag.String("directory", "", "the directory to serve files from")
-	flag.Parse()
-
-	if *directory == "" {
-		fmt.Println("Please provide a directory using the --directory flag")
-		os.Exit(1)
-	}
-
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
-	if err != nil {
-		fmt.Println("Failed to bind to port 4221")
-		os.Exit(1)
-	}
-	defer l.Close()
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection:", err.Error())
-			continue
-		}
-
-		go handleConnection(conn, *directory)
-	}
-}
-
-func handleConnection(conn net.Conn, directory string) {
+func handleConnection(conn net.Conn) {
 	defer conn.Close()
-
-	reader := bufio.NewReader(conn)
-
-	// Read the request line
-	requestLine, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Println("Error reading request:", err.Error())
-		return
-	}
-
-	// Extract the path from the request line
-	path := extractPath(requestLine)
-
-	// Read headers
-	headers := make(map[string]string)
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("Error reading headers:", err.Error())
-			return
-		}
-		line = strings.TrimSpace(line)
-		if line == "" {
+	buf := make([]byte, 1024)
+	conn.Read(buf)
+	fmt.Print(string(buf))
+	req := string(buf)
+	path := strings.Split(req, "\r\n")[0]
+	path = strings.TrimSpace(path)
+	path = strings.Split(path, " ")[1]
+	var pathUA string
+	headers := strings.Split(req, "\r\n")
+	for _, header := range headers {
+		if strings.HasPrefix(header, "User-Agent:") {
+			uaParts := strings.SplitN(header, ":", 2)
+			pathUA = strings.TrimSpace(uaParts[1])
 			break
 		}
-		parts := strings.SplitN(line, ": ", 2)
-		if len(parts) == 2 {
-			headers[strings.ToLower(parts[0])] = parts[1]
-		}
 	}
-
-	// Prepare the HTTP response based on the path
-	var response string
-	if path == "/" {
+	response := ""
+	if strings.HasPrefix(req, "GET / HTTP") {
 		response = "HTTP/1.1 200 OK\r\n\r\n"
-	} else if strings.HasPrefix(path, "/echo/") {
-		echoStr := strings.TrimPrefix(path, "/echo/")
-		contentLength := len(echoStr)
-		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, echoStr)
-	} else if path == "/user-agent" {
-		userAgent := headers["user-agent"]
-		contentLength := len(userAgent)
-		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent)
+	} else if strings.Contains(req, "/echo/") {
+		echo := strings.TrimPrefix(path, "/echo/")
+		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(echo), echo)
+	} else if strings.Contains(req, "/user-agent") && pathUA != "" {
+		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(pathUA), pathUA)
 	} else if strings.Contains(req, "/files/") {
 		dir := os.Args[2]
 		fileName := strings.TrimPrefix(path, "/files/")
@@ -96,19 +44,20 @@ func handleConnection(conn net.Conn, directory string) {
 	} else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
-
-	// Write the response
-	_, err = conn.Write([]byte(response))
-	if err != nil {
-		fmt.Println("Error writing response:", err.Error())
-		return
-	}
+	conn.Write([]byte(response))
 }
-
-func extractPath(requestLine string) string {
-	parts := strings.Split(requestLine, " ")
-	if len(parts) < 2 {
-		return ""
+func main() {
+	l, err := net.Listen("tcp", "0.0.0.0:4221")
+	if err != nil {
+		fmt.Println("Failed to bind to port 4221")
+		os.Exit(1)
 	}
-	return parts[1]
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		go handleConnection(conn)
+	}
 }
