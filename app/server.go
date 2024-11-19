@@ -47,8 +47,14 @@ func handleConnection(conn net.Conn) {
 		}
 	} else if m == "POST" && p[0:7] == "/files/" {
 		content := strings.Trim(r[len(r)-1], "\x00")
-		dir := os.Args[2]
-		_ = os.WriteFile(path.Join(dir, p[7:]), []byte(content), 0644)
+		directory := flag.String("directory", "", "the directory to serve files from")
+	flag.Parse()
+
+	if *directory == "" {
+		fmt.Println("Please provide a directory using the --directory flag")
+		os.Exit(1)
+	}
+		_ = os.WriteFile(path.Join(directory, p[7:]), []byte(content), 0644)
 		response = "HTTP/1.1 201 Created\r\n\r\n"
 	}  else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
