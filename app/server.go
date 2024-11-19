@@ -1,16 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
-os.Exit(1)
+		os.Exit(1)
 	}
 	defer l.Close()
 
@@ -28,16 +30,25 @@ os.Exit(1)
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	// Read the incoming request (we'll ignore its contents)
-	buffer := make([]byte, 1024)
-	_, err := conn.Read(buffer)
+	reader := bufio.NewReader(conn)
+
+	// Read the request line
+	requestLine, err := reader.ReadString('\n')
 	if err != nil {
 		fmt.Println("Error reading request:", err.Error())
 		return
 	}
 
-	// Prepare the HTTP response
-	response := "HTTP/1.1 200 OK\r\n\r\n"
+	// Extract the path from the request line
+	path := extractPath(requestLine)
+
+	// Prepare the HTTP response based on the path
+	var response string
+	if path == "/" {
+		response = "HTTP/1.1 200 OK\r\n\r\n"
+	} else {
+		response = "HTTP/1.1 404 Not Found\r\n\r\n"
+	}
 
 	// Write the response
 	_, err = conn.Write([]byte(response))
@@ -45,4 +56,12 @@ func handleConnection(conn net.Conn) {
 		fmt.Println("Error writing response:", err.Error())
 		return
 	}
+}
+
+func extractPath(requestLine string) string {
+	parts := strings.Split(requestLine, " ")
+	if len(parts) < 2 {
+		return ""
+	}
+	return parts[1]
 }
