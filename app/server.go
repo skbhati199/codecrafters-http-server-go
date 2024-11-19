@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"strconv"
 )
 const CRLF = "\r\n"
 func main() {
@@ -29,7 +30,10 @@ func main() {
 			buf := make([]byte, 1024)
 			n, err = conn.Read(buf)
 			if err != nil {
-				fmt.Println("Error accepting connection: ", err)
+				if err != io.EOF {
+					fmt.Printf("Error reading: %#v\n", err)
+				}
+				break
 			}
 			body := strconv.Quote(string(buf[:n]))
 			req, _ := parseRequest(body)
