@@ -54,12 +54,14 @@ func handleConnection(conn net.Conn) {
 	} else if strings.Contains(string(rq.path), "echo") {
 		msg := splitPath(string(rq.path))[2]
 		if string(rq.acceptEncoding) == "gzip" {
-		if acceptedEncoding(rq) {
-			conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n%s", len(msg), msg)))
+			if acceptedEncoding(rq) {
+				conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n%s", len(msg), msg)))
+			} else {
+				conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)))
+			}
 		} else {
 			conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)))
 		}
-	}
 	} else if strings.Contains(string(rq.path), "files") && string(rq.method) == "GET" {
 		fileName := splitPath(string(rq.path))[2]
 		fileContent, fileRequestErr := handleFileReadRequest(fileName)
