@@ -59,6 +59,7 @@ func handleConnection(conn net.Conn) {
 		} else {
 			conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)))
 		}
+	}
 	} else if strings.Contains(string(rq.path), "files") && string(rq.method) == "GET" {
 		fileName := splitPath(string(rq.path))[2]
 		fileContent, fileRequestErr := handleFileReadRequest(fileName)
@@ -81,6 +82,7 @@ func handleConnection(conn net.Conn) {
 	}
 	splitRequest(readBuf, readByte)
 }
+
 func splitRequest(readBuf []byte, readByte int) httpRequest {
 	splittedReq := bytes.Split(readBuf[:readByte], []byte("\r\n"))
 	statusLine := splittedReq[0]
