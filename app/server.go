@@ -60,7 +60,9 @@ func handleConnection(conn net.Conn) {
 				conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)))
 			}
 		} else {
+			// Expected "Content-Encoding" header to be present
 			conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)))
+
 		}
 	} else if strings.Contains(string(rq.path), "files") && string(rq.method) == "GET" {
 		fileName := splitPath(string(rq.path))[2]
