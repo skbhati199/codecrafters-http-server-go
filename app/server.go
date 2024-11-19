@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 	"path/filepath"
+	"io"
 )
 
 const CRLF = "\r\n"
