@@ -6,23 +6,43 @@ import (
 	"os"
 )
 
-// Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
-var _ = net.Listen
-var _ = os.Exit
-
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	// fmt.Println("Logs from your program will appear here!")
-
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
-		os.Exit(1)
+os.Exit(1)
 	}
-	
-	_, err = l.Accept()
+	defer l.Close()
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection:", err.Error())
+			continue
+		}
+
+		go handleConnection(conn)
+	}
+}
+
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	// Read the incoming request (we'll ignore its contents)
+	buffer := make([]byte, 1024)
+	_, err := conn.Read(buffer)
 	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
+		fmt.Println("Error reading request:", err.Error())
+		return
+	}
+
+	// Prepare the HTTP response
+	response := "HTTP/1.1 200 OK\r\n\r\n"
+
+	// Write the response
+	_, err = conn.Write([]byte(response))
+	if err != nil {
+		fmt.Println("Error writing response:", err.Error())
+		return
 	}
 }
