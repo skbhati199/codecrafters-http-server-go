@@ -67,14 +67,19 @@ func main() {
 					if contentLength <= 0 {
 						res = "HTTP/1.1 411 Length Required\r\n\r\n"
 					} else {
-						// Read the body based on Content-Length
-						body := buf[len(req)-contentLength:]
-						if err := os.WriteFile(*dir+filename, body, 0644); err == nil {
-							fmt.Println("File written:", *dir+filename)
-							res = "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n"
+						// Find the start of the body
+						headerEnd := strings.Index(req, "\r\n\r\n")
+						if headerEnd == -1 {
+							res = "HTTP/1.1 400 Bad Request\r\n\r\n"
 						} else {
-							fmt.Println("Failed to write file:", err)
-							res = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+							body := buf[headerEnd+4 : headerEnd+4+contentLength] // Extract body based on Content-Length
+							if err := os.WriteFile(*dir+filename, body, 0644); err == nil {
+								fmt.Println("File written:", *dir+filename)
+								res = "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n"
+							} else {
+								fmt.Println("Failed to write file:", err)
+								res = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+							}
 						}
 					}
 				}
