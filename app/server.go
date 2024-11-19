@@ -100,6 +100,8 @@ func mapHeaders(headers [][]byte) map[string]string {
 	}
 	return res
 }
+
+
 func requestResult(readBuf []byte, readByte int) httpRequestDetails {
 	sreq := splitRequest(readBuf, readByte)
 	statusLine := bytes.Split(sreq.statusLine, []byte(" "))
@@ -114,9 +116,13 @@ func requestResult(readBuf []byte, readByte int) httpRequestDetails {
 		acceptEncoding: []byte(headerMap["Accept-Encoding"]),
 	}
 }
+
+
 func splitPath(s string) []string {
 	return strings.Split(s, "/")
 }
+
+
 func handleFileReadRequest(fileName string) ([]byte, error) {
 	arguments := os.Args[1:]
 	var directory string
