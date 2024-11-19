@@ -5,7 +5,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"strconv"
 )
 const CRLF = "\r\n"
 func main() {
@@ -28,15 +27,11 @@ func main() {
 		go func() {
 			defer conn.Close()
 			buf := make([]byte, 1024)
-			n, err = conn.Read(buf)
+			_, err = conn.Read(buf)
 			if err != nil {
-				if err != io.EOF {
-					fmt.Printf("Error reading: %#v\n", err)
-				}
-				break
+				fmt.Println("Error accepting connection: ", err)
 			}
-			body := strconv.Quote(string(buf[:n]))
-			req, _ := parseRequest(body)
+			req := string(buf)
 			lines := strings.Split(req, CRLF)
 			path := strings.Split(lines[0], " ")[1]
 			method := strings.Split(lines[0], " ")[0]
@@ -45,19 +40,18 @@ func main() {
 			if path == "/" {
 				res = "HTTP/1.1 200 OK\r\n\r\n"
 			} else if strings.HasPrefix(path, "/echo/") {
-				echoOut := req.path[strings.Index(req.path, "/echo/")+len("/echo/"):]
-				// res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %v\r\n\r\n%v", len(msg), msg)
-				var contEncoding = ""
-				if req.encoding == "gzip" {
-					fmt.Println("in encoding")
-					contEncoding = fmt.Sprintf("Content-Encoding: %s\r\n", req.encoding)
-				}
-				fmt.Println(contEncoding)
-				res := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n%sContent-Length: %d\r\n\r\n%s", contEncoding, len(echoOut), echoOut)
-				writeResponse(conn, res)
+				msg := path[6:]
+				res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %v\r\n\r\n%v", len(msg), msg)
 			} else if path == "/user-agent" {
 				msg := strings.Split(lines[2], " ")[1]
-				res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %v\r\n\r\n%v", len(msg), msg)
+				// res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %v\r\n\r\n%v", len(msg), msg)
+				if acceptedEncoding(rq) {
+					res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n%s", len(msg), msg)
+					// conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n%s", len(msg), msg)))
+				} else {
+					// conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)))
+					res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)
+				}
 			} else if strings.HasPrefix(path, "/files/") && *dir != "" {
 				filename := path[7:]
 				fmt.Println(*dir + filename)
@@ -108,40 +102,13 @@ func main() {
 	}
 }
 
-func writeResponse(conn net.Conn, res string) {
-	_, err := conn.Write([]byte(res))
-	if err != nil {
-		fmt.Println("failed to write to connection")
-		return
-	}
-}
-
-func parseRequest(request string) (*HTTPRequest, error) {
-	strs := strings.Split(request, "\\r\\n")
-	req := HTTPRequest{}
-	for _, item := range strs {
-		if strings.Contains(item, "GET") || strings.Contains(item, "POST") {
-			headerParts := strings.Fields(item)
-			// set http verb
-			req.verb = strings.Trim(headerParts[0], "\"")
-			// set route
-			req.path = headerParts[1]
-			// set http version
-			req.httpVersion = headerParts[2]
-		}
-		if strings.Contains(item, "Host: ") {
-			req.host = item[strings.Index("Host: ", item)+len("Host: "):]
-		}
-		if strings.Contains(item, "User-Agent: ") {
-			req.userAgent = item[strings.Index("User-Agent: ", item)+len("User-Agent: "):]
-		}
-		if strings.Contains(item, "Accept-Encoding: ") {
-			req.encoding = item[strings.Index("Accept-Encoding: ", item)+len("Accept-Encoding: "):]
-			req.encoding = strings.Trim(req.encoding, " ")
+func acceptedEncoding(rq httpRequestDetails) bool {
+	var res bool
+	acceptedEncodings := strings.Split(string(rq.acceptEncoding), ", ")
+	for _, encoding := range acceptedEncodings {
+		if encoding == "gzip" {
+			res = true
 		}
 	}
-	if req.verb == "POST" {
-		req.body = strings.TrimSuffix(strs[len(strs)-1], "\"")
-	}
-	return &req, nil
+	return res
 }
