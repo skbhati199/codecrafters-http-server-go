@@ -23,9 +23,7 @@ func handleConnection(conn net.Conn) {
 	req := string(buf)
 
 	lines := strings.Split(req, CRLF)
-	path := strings.Split(lines[0], " ")[1]
 	method := strings.Split(lines[0], " ")[0]
-	fmt.Println(path)
 	var pathUA string
 	headers := strings.Split(req, "\r\n")
 	for _, header := range headers {
@@ -39,7 +37,7 @@ func handleConnection(conn net.Conn) {
 	if strings.HasPrefix(req, "GET / HTTP") {
 		response = "HTTP/1.1 200 OK\r\n\r\n"
 	} else if strings.Contains(req, "/echo/") {
-		echo := strings.TrimPrefix(path, "/echo/")
+		echo := strings.TrimPrefix(p, "/echo/")
 		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(echo), echo)
 	} else if strings.Contains(req, "/user-agent") && pathUA != "" {
 		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(pathUA), pathUA)
