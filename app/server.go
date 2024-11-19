@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"path/filepath"
 )
 
 const CRLF = "\r\n"
@@ -51,7 +52,14 @@ func handleConnection(conn net.Conn) {
 		flag.Parse()
 
 
-		_ = os.WriteFile(path.Join(directory, p[7:]), []byte(content), 0644)
+		// _ = os.WriteFile(path.Join(directory, p[7:]), []byte(content), 0644)
+		filePath := filepath.Join(directory, p[7:])
+		file, err := os.Create(filePath)
+		if err != nil {
+			conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+			return
+		}
+		defer file.Close()
 		response = "HTTP/1.1 201 Created\r\n\r\n"
 	}  else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
