@@ -2,22 +2,30 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
-	"sync"
 )
 
 func main() {
+	directory := flag.String("directory", "", "the directory to serve files from")
+	flag.Parse()
+
+	if *directory == "" {
+		fmt.Println("Please provide a directory using the --directory flag")
+		os.Exit(1)
+	}
+
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
 		os.Exit(1)
 	}
 	defer l.Close()
-
-	var wg sync.WaitGroup
 
 	for {
 		conn, err := l.Accept()
@@ -26,17 +34,11 @@ func main() {
 			continue
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			handleConnection(conn)
-		}()
+		go handleConnection(conn, *directory)
 	}
-
-	wg.Wait()
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, directory string) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
@@ -81,6 +83,31 @@ func handleConnection(conn net.Conn) {
 		userAgent := headers["user-agent"]
 		contentLength := len(userAgent)
 		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent)
+	} else if strings.HasPrefix(path, "/files/") {
+		filename := strings.TrimPrefix(path, "/files/")
+		filePath := filepath.Join(directory, filename)
+		
+		file, err := os.Open(filePath)
+		if err != nil {
+			response = "HTTP/1.1 404 Not Found\r\n\r\n"
+		} else {
+			defer file.Close()
+			
+			fileInfo, err := file.Stat()
+			if err != nil {
+				response = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+			} else {
+				contentLength := fileInfo.Size()
+				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n", contentLength)
+				conn.Write([]byte(response))
+				
+				_, err = io.Copy(conn, file)
+				if err != nil {
+					fmt.Println("Error writing file content:", err.Error())
+				}
+				return
+			}
+		}
 	} else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
