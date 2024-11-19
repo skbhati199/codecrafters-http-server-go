@@ -44,17 +44,17 @@ func handleConnection(conn net.Conn) {
 		if method == "GET" {
 			if file, err := os.ReadFile(*dir + filename); err == nil {
 				content := string(file)
-				res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(content), content)
+				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", len(content), content)
 			} else {
-				res = "HTTP/1.1 404 Not found\r\n\r\n"
+				response = "HTTP/1.1 404 Not found\r\n\r\n"
 			}
 		} else if method == "POST" {
 			file := []byte(strings.Trim(lines[6], "\x00"))
 			if err := os.WriteFile(*dir+filename, file, 0644); err == nil {
 				fmt.Println("wrote file")
-				res = "HTTP/1.1 201 OK\r\n\r\n"
+				response = "HTTP/1.1 201 OK\r\n\r\n"
 			} else {
-				res = "HTTP/1.1 404 Not found\r\n\r\n"
+				response = "HTTP/1.1 404 Not found\r\n\r\n"
 			}
 		}
 	} else {
