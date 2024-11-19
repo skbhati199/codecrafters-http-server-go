@@ -16,7 +16,11 @@ func handleConnection(conn net.Conn) {
 	buf := make([]byte, 1024)
 	conn.Read(buf)
 	fmt.Print(string(buf))
+	r := strings.Split(string(buf), "\r\n")
+	m := strings.Split(r[0], " ")[0]
+	p := strings.Split(r[0], " ")[1]
 	req := string(buf)
+
 	lines := strings.Split(req, CRLF)
 	path := strings.Split(lines[0], " ")[1]
 	method := strings.Split(lines[0], " ")[0]
@@ -48,10 +52,10 @@ func handleConnection(conn net.Conn) {
 			} else {
 				response = "HTTP/1.1 404 Not found\r\n\r\n"
 			}
-		} else if method == "POST" && path[0:7] == "/files/" {
-			content := strings.Trim(req[len(req)-1], "\x00")
+		} else if m == "POST" && p[0:7] == "/files/" {
+			content := strings.Trim(r[len(r)-1], "\x00")
 			dir := os.Args[2]
-			_ = os.WriteFile(path.Join(dir, path[7:]), []byte(content), 0644)
+			_ = os.WriteFile(path.Join(dir, p[7:]), []byte(content), 0644)
 			response = "HTTP/1.1 201 Created\r\n\r\n"
 		}
 	} else {
