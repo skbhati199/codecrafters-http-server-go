@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"strings"
+	"path"
 )
 
 const CRLF = "\r\n"
