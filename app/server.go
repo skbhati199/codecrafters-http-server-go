@@ -45,7 +45,7 @@ func main() {
 			} else if path == "/user-agent" {
 				msg := strings.Split(lines[2], " ")[1]
 				// res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %v\r\n\r\n%v", len(msg), msg)
-				if acceptedEncoding(rq) {
+				if acceptedEncoding(req) {
 					res = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n%s", len(msg), msg)
 					// conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: gzip\r\n\r\n%s", len(msg), msg)))
 				} else {
