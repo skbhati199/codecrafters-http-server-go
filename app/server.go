@@ -84,7 +84,7 @@ func main() {
 					}
 				}
 			} else {
-				res = "HTTP/1.1 404 Not Found\r\n\r\n"
+				res = "HTTP/1.1 404 Not found\r\n\r\n"
 			}
 			fmt.Println(res)
 			conn.Write([]byte(res))
