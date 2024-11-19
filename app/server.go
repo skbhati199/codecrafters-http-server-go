@@ -42,6 +42,24 @@ func handleConnection(conn net.Conn) {
 	// Extract the path from the request line
 	path := extractPath(requestLine)
 
+	// Read headers
+	headers := make(map[string]string)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading headers:", err.Error())
+			return
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+		parts := strings.SplitN(line, ": ", 2)
+		if len(parts) == 2 {
+			headers[strings.ToLower(parts[0])] = parts[1]
+		}
+	}
+
 	// Prepare the HTTP response based on the path
 	var response string
 	if path == "/" {
@@ -50,6 +68,10 @@ func handleConnection(conn net.Conn) {
 		echoStr := strings.TrimPrefix(path, "/echo/")
 		contentLength := len(echoStr)
 		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, echoStr)
+	} else if path == "/user-agent" {
+		userAgent := headers["user-agent"]
+		contentLength := len(userAgent)
+		response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent)
 	} else {
 		response = "HTTP/1.1 404 Not Found\r\n\r\n"
 	}
