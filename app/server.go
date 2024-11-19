@@ -56,12 +56,26 @@ func main() {
 						res = "HTTP/1.1 404 Not found\r\n\r\n"
 					}
 				} else if method == "POST" {
-					file := []byte(strings.Trim(lines[6], "\x00"))
-					if err := os.WriteFile(*dir+filename, file, 0644); err == nil {
-						fmt.Println("wrote file")
-						res = "HTTP/1.1 201 OK\r\n\r\n"
+					var contentLength int
+					for _, line := range lines {
+						if strings.HasPrefix(strings.ToLower(line), "content-length:") {
+							fmt.Sscanf(line, "Content-Length: %d", &contentLength)
+							break
+						}
+					}
+
+					if contentLength <= 0 {
+						res = "HTTP/1.1 411 Length Required\r\n\r\n"
 					} else {
-						res = "HTTP/1.1 404 Not found\r\n\r\n"
+						// Read the body based on Content-Length
+						body := buf[len(req)-contentLength:]
+						if err := os.WriteFile(*dir+filename, body, 0644); err == nil {
+							fmt.Println("File written:", *dir+filename)
+							res = "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n"
+						} else {
+							fmt.Println("Failed to write file:", err)
+							res = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+						}
 					}
 				}
 			} else {
