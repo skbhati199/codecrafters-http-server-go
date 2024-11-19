@@ -20,12 +20,29 @@ func handleConnection(conn net.Conn, directory string) {
 	path = strings.TrimSpace(path)
 	path = strings.Split(path, " ")[1]
 	var pathUA string
-	headers := strings.Split(req, "\r\n")
-	for _, header := range headers {
+	headersOld := strings.Split(req, "\r\n")
+	for _, header := range headersOld {
 		if strings.HasPrefix(header, "User-Agent:") {
 			uaParts := strings.SplitN(header, ":", 2)
 			pathUA = strings.TrimSpace(uaParts[1])
 			break
+		}
+	}
+
+	headers := make(map[string]string)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading headers:", err.Error())
+			return
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+		parts := strings.SplitN(line, ": ", 2)
+		if len(parts) == 2 {
+			headers[strings.ToLower(parts[0])] = parts[1]
 		}
 	}
 
