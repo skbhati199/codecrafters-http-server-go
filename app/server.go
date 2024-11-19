@@ -104,3 +104,63 @@ func extractMethodAndPath(requestLine string) (string, string) {
 	}
 	return parts[0], parts[1]
 }
+
+
+func handleGet(conn net.Conn, directory, path string) {
+	filename := strings.TrimPrefix(path, "/files/")
+	filePath := filepath.Join(directory, filename)
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+		return
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		return
+	}
+
+	contentLength := fileInfo.Size()
+	response := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n", contentLength)
+	conn.Write([]byte(response))
+
+	_, err = io.Copy(conn, file)
+	if err != nil {
+		fmt.Println("Error writing file content:", err.Error())
+	}
+}
+
+func handlePost(conn net.Conn, directory, path string, reader *bufio.Reader, contentLength int) {
+	filename := strings.TrimPrefix(path, "/files/")
+	if filename == "" {
+		conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+		return
+	}
+
+	filePath := filepath.Join(directory, filename)
+	file, err := os.Create(filePath)
+	if err != nil {
+		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		return
+	}
+	defer file.Close()
+
+	// Read the request body and write it to the file
+	body := make([]byte, contentLength)
+	_, err = io.ReadFull(reader, body)
+	if err != nil {
+		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		return
+	}
+
+	_, err = file.Write(body)
+	if err != nil {
+		conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+		return
+	}
+
+	conn.Write([]byte("HTTP/1.1 201 Created\r\n\r\n"))
+}
